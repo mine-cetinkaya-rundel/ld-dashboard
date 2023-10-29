@@ -493,5 +493,8 @@ ld_c |>
 ```{r}
 ld |>
   arrange(patient_id) |>
-  datatable(options = list(dom = 'ftp', paging = TRUE))
+  datatable(
+    colnames = c("ID", "Maternal age", "Delivery method", "Parity", "Term"),
+    options = list(dom = 'ftp', paging = TRUE)
+    )
 ```
