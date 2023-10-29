@@ -60,7 +60,7 @@ ld <- ld |>
 
 #  {.sidebar}
 
-This dashboard displays statistics for:ss
+This dashboard displays statistics for:
 
 |              |                     |
 |--------------|---------------------|
