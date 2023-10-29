@@ -1,0 +1,497 @@
+---
+title: "Labor and Delivery Dashboard"
+format: dashboard
+logo: images/logo.png
+theme: [sandstone, theme/custom.scss]
+fig-width: 10
+fig-asp: 0.3
+params:
+  month: "October"
+  year: "2023"
+  # 2021 rates: https://www.cdc.gov/nchs/data/nvsr/nvsr72/nvsr72-01.pdf
+  us_cesarean_rate: 0.321 
+  us_preterm_rate:  0.1049
+  threshold_diff: 0.02
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| label: load-packages
+#| message: false
+
+library(tidyverse)
+library(readxl)
+library(scales)
+library(DT)
+library(gt)
+theme_set(theme_minimal(base_size = 24, base_family = "Atkinson Hyperlegible"))
+```
+
+```{r}
+#| label: load-data
+#| message: false
+
+ld <- read_excel("data/ld.xlsx")
+```
+
+```{r}
+#| label: set-inputs
+
+time_period <- paste(params$month, params$year)
+```
+
+```{r}
+#| label: prep-data
+
+ld <- ld |>
+  mutate(
+    delivery_method = str_to_sentence(delivery_method),
+    term = str_to_sentence(term),
+    parity = case_when(
+      parity == "1"  ~ "Nulliparous",
+      parity == "2"  ~ "Primiparous",
+      parity == "3+" ~ "Multiparous"
+    ),
+    parity = fct_relevel(parity, "Nulliparous", "Primiparous", "Multiparous"),
+    maternal_age = fct_relevel(maternal_age, "<20", "20-34", "35+")
+  )
+```
+
+#  {.sidebar}
+
+This dashboard displays statistics for:ss
+
+|              |                     |
+|--------------|---------------------|
+| **Hospital** | Grey Sloan Memorial |
+| **Unit**     | Labor and Delivery  |
+| **Month**    | `{r} time_period`   |
+
+------------------------------------------------------------------------
+
+In `{r} time_period` the staff breakdown in the unit was as follows:
+
+|                          |     |
+|--------------------------|-----|
+| **Attending physicians** |  14 |
+| **Residents**            |  21 |
+| **Nurses**               |  12 |
+
+------------------------------------------------------------------------
+
+::: {.callout-note collapse="true"}
+## Disclaimer
+
+This is a fictional hospital. The data are simulated based on realistic birth characteristics and risk factors from [this report by the CDC](https://www.cdc.gov/nchs/data/nvsr/nvsr72/nvsr72-01.pdf).
+:::
+
+# All
+
+```{r}
+#| label: all-values
+#| results: hide
+
+n_births <- nrow(ld)
+
+p_cesarean <- ld |>
+  count(delivery_method) |>
+  mutate(p = n / sum(n)) |>
+  filter(delivery_method == "Cesarean") |>
+  pull(p)
+
+p_cesarean_color <- case_when(
+  between(p_cesarean, params$us_cesarean_rate, params$us_cesarean_rate + params$threshold_diff) ~ "warning",
+  p_cesarean > params$us_cesarean_rate + params$threshold_diff ~ "danger",
+  .default = "light"
+  )
+
+p_preterm <- ld |>
+  count(term) |>
+  mutate(p = n / sum(n)) |>
+  filter(term == "Pre-term") |>
+  pull(p)
+
+p_preterm_color <- case_when(
+  between(p_preterm, params$us_preterm_rate, params$us_preterm_rate + params$threshold_diff) ~ "warning",
+  p_preterm > params$us_preterm_rate + params$threshold_diff ~ "danger",
+  .default = "light"
+  )
+```
+
+## Row {height="20%"}
+
+```{r}
+#| component: valuebox
+#| title: "Total births"
+
+list(
+  icon = "file-medical",
+  color = "primary",
+  value = n_births
+)
+```
+
+```{r}
+#| component: valuebox
+#| title: "Cesarean deliveries"
+
+list(
+  icon = "clipboard2-pulse",
+  color = p_cesarean_color,
+  value = label_percent(accuracy = 0.1)(p_cesarean)
+)
+```
+
+```{r}
+#| component: valuebox
+#| title: "Pre-term births"
+
+list(
+  icon = "calendar-week",
+  color = p_preterm_color,
+  value = label_percent(accuracy = 0.1)(p_preterm)
+)
+```
+
+## Row {height="40%"}
+
+### Column {width="40%"}
+
+```{r}
+#| title: Delivery method
+
+ld |>
+  count(delivery_method) |>
+  mutate(p = n / sum(n)) |>
+  gt() |>
+  fmt_percent(
+    columns = p,
+    decimals = 1
+  ) |>
+  tab_style(
+    style = cell_text(color = "#ae8b2d", weight = "bold"),
+    locations = cells_body(
+      columns = everything(),
+      rows = delivery_method == "Cesarean"
+    )
+  ) |>
+  tab_style(
+    style = cell_text(color = "#0e2635", weight = "bold"),
+    locations = cells_body(
+      columns = everything(),
+      rows = delivery_method == "Vaginal"
+    )
+  ) |>
+  cols_label(
+    delivery_method = "",
+    n = "Number of<br>deliveries",
+    p = "Proportion of<br>deliveries",
+    .fn = md
+  )
+```
+
+### Column {width="60%"}
+
+```{r}
+#| title: Maternal age
+
+ld |>
+  count(maternal_age) |>
+  mutate(p = n / sum(n)) |>
+  ggplot(aes(x = maternal_age, y = n, group = 1)) +
+  geom_line(linewidth = 2, color = "#0e263560") +
+  geom_point(size = 3, color = "#0e2635") +
+  geom_point(size = 6, color = "#0e2635", shape = "circle open") +
+  labs(x = NULL) +
+  scale_y_continuous(
+    "Count",
+    sec.axis = sec_axis(~ . / n_births, name = "Proportion", labels = label_percent())
+  )
+```
+
+## Row {height="40%"}
+
+```{r}
+#| title: Delivery method and parity
+
+ld |>
+  count(parity, delivery_method) |>
+  ggplot(aes(x = n, y = fct_rev(parity), fill = delivery_method)) +
+  geom_col(position = "fill", color = "white") +
+  scale_fill_manual(
+    values = c("#ae8b2d", "#0e2635"),
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  scale_x_continuous(labels = label_percent()) +
+  labs(y = NULL, x = NULL, fill = "Delivery\nmethod")
+```
+
+```{r}
+#| title: Delivery method and maternal age
+
+ld |>
+  count(maternal_age, delivery_method) |>
+  ggplot(aes(x = n, y = fct_rev(maternal_age), fill = delivery_method)) +
+  geom_col(position = "fill", color = "white") +
+  scale_fill_manual(
+    values = c("#ae8b2d", "#0e2635"),
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  scale_x_continuous(labels = label_percent()) +
+  labs(y = NULL, x = NULL, fill = "Delivery\nmethod")
+```
+
+# Vaginal {orientation="columns"}
+
+## Column {width="60%"}
+
+```{r}
+#| label: vaginal-values
+#| results: hide
+
+ld_v <- ld |>
+  filter(delivery_method == "Vaginal")
+
+n_births_v <- nrow(ld_v)
+
+p_preterm_v <- ld_v |>
+  count(term) |>
+  mutate(p = n / sum(n)) |>
+  filter(term == "Pre-term") |>
+  pull(p)
+
+p_preterm_color_v <- case_when(
+  between(p_preterm_v, params$us_preterm_rate, params$us_preterm_rate + params$threshold_diff) ~ "warning",
+  p_preterm_v > params$us_preterm_rate + params$threshold_diff ~ "danger",
+  .default = "light"
+  )
+```
+
+### Row {height="20%"}
+
+```{r}
+#| component: valuebox
+#| title: "Total births"
+
+list(
+  icon = "file-medical",
+  color = "primary",
+  value = n_births_v
+)
+```
+
+```{r}
+#| component: valuebox
+#| title: "Pre-term births"
+
+list(
+  icon = "calendar-week",
+  color = p_preterm_color_v,
+  value = label_percent(accuracy = 0.1)(p_preterm_v)
+)
+```
+
+### Row {height="40%"}
+
+```{r}
+#| title: Maternal age
+
+ld_v |>
+  count(maternal_age) |>
+  mutate(p = n / sum(n)) |>
+  ggplot(aes(x = maternal_age, y = n, group = 1)) +
+  geom_line(linewidth = 2, color = "#0e263560") +
+  geom_point(size = 3, color = "#0e2635") +
+  geom_point(size = 6, color = "#0e2635", shape = "circle open") +
+  labs(x = NULL) +
+  scale_y_continuous(
+    "Count",
+    sec.axis = sec_axis(~ . / n_births, name = "Proportion", labels = label_percent())
+  )
+```
+
+### Row {height="40%" .tabset}
+
+```{r}
+#| title: Maternal age and parity
+
+ld_v |>
+  count(maternal_age, parity) |>
+  ggplot(aes(x = n, y = fct_rev(maternal_age), fill = fct_rev(parity))) +
+  geom_col(position = "fill", color = "white") +
+  scale_fill_brewer(
+    palette = "Blues",
+    guide = guide_legend(reverse = TRUE),
+    direction = -1
+  ) +
+  scale_x_continuous(labels = label_percent()) +
+  labs(y = NULL, x = NULL, fill = "Parity")
+```
+
+```{r}
+#| title: Maternal age and term
+
+ld_v |>
+  count(maternal_age, term) |>
+  ggplot(aes(x = n, y = fct_rev(maternal_age), fill = fct_rev(term))) +
+  geom_col(position = "fill", color = "white") +
+  scale_fill_brewer(
+    palette = "Greens",
+    guide = guide_legend(reverse = TRUE),
+    direction = -1
+  ) +
+  scale_x_continuous(labels = label_percent()) +
+  labs(y = NULL, x = NULL, fill = "Term")
+```
+
+## Column {width="40%"}
+
+```{r}
+#| title: Data
+
+ld_v |>
+  select(-delivery_method) |>
+  arrange(patient_id) |>
+  datatable(
+    colnames = c("ID", "Maternal age", "Parity", "Term"),
+    options = list(
+      dom = "lrtip", 
+      pageLength = 5, paging = TRUE,
+      lengthMenu = c(5, 10, 25),
+      pageLength = 10, 
+      scrollY = TRUE
+    ),
+  )
+```
+
+# Caesarean {orientation="columns"}
+
+## Column {width="60%"}
+
+```{r}
+#| label: cesarean-values
+#| results: hide
+
+ld_c <- ld |>
+  filter(delivery_method == "Cesarean")
+
+n_births_c <- nrow(ld_c)
+
+p_preterm_c <- ld_c |>
+  count(term) |>
+  mutate(p = n / sum(n)) |>
+  filter(term == "Pre-term") |>
+  pull(p)
+
+p_preterm_color_c <- case_when(
+  between(p_preterm_c, params$us_preterm_rate, params$us_preterm_rate + params$threshold_diff) ~ "warning",
+  p_preterm_c > params$us_preterm_rate + params$threshold_diff ~ "danger",
+  .default = "light"
+  )
+```
+
+### Row {height="20%"}
+
+```{r}
+#| component: valuebox
+#| title: "Total births"
+
+list(
+  icon = "file-medical",
+  color = "primary",
+  value = n_births_c
+)
+```
+
+```{r}
+#| component: valuebox
+#| title: "Pre-term births"
+
+list(
+  icon = "calendar-week",
+  color = p_preterm_color_c,
+  value = label_percent(accuracy = 0.1)(p_preterm_c)
+)
+```
+
+### Row {height="40%"}
+
+```{r}
+#| title: Maternal age
+
+ld_c |>
+  count(maternal_age) |>
+  mutate(p = n / sum(n)) |>
+  ggplot(aes(x = maternal_age, y = n, group = 1)) +
+  geom_line(linewidth = 2, color = "#0e263560") +
+  geom_point(size = 3, color = "#0e2635") +
+  geom_point(size = 6, color = "#0e2635", shape = "circle open") +
+  labs(x = NULL) +
+  scale_y_continuous(
+    "Count",
+    sec.axis = sec_axis(~ . / n_births, name = "Proportion", labels = label_percent())
+  )
+```
+
+### Row {height="40%" .tabset}
+
+```{r}
+#| title: Maternal age and parity
+
+ld_c |>
+  count(maternal_age, parity) |>
+  ggplot(aes(x = n, y = fct_rev(maternal_age), fill = fct_rev(parity))) +
+  geom_col(position = "fill", color = "white") +
+  scale_fill_brewer(
+    palette = "Blues",
+    guide = guide_legend(reverse = TRUE),
+    direction = -1
+  ) +
+  scale_x_continuous(labels = label_percent()) +
+  labs(y = NULL, x = NULL, fill = "Parity")
+```
+
+```{r}
+#| title: Maternal age and term
+
+ld_c |>
+  count(maternal_age, term) |>
+  ggplot(aes(x = n, y = fct_rev(maternal_age), fill = fct_rev(term))) +
+  geom_col(position = "fill", color = "white") +
+  scale_fill_brewer(
+    palette = "Greens",
+    guide = guide_legend(reverse = TRUE),
+    direction = -1
+  ) +
+  scale_x_continuous(labels = label_percent()) +
+  labs(y = NULL, x = NULL, fill = "Term")
+```
+
+## Column {width="40%"}
+
+```{r}
+#| title: Data
+
+ld_c |>
+  select(-delivery_method) |>
+  arrange(patient_id) |>
+  datatable(
+    colnames = c("ID", "Maternal age", "Parity", "Term"),
+    options = list(
+      dom = "lrtip", 
+      pageLength = 5, paging = TRUE,
+      lengthMenu = c(5, 10, 25),
+      pageLength = 10, 
+      scrollY = TRUE
+    ),
+  )
+```
+
+# Data
+
+```{r}
+ld |>
+  arrange(patient_id) |>
+  datatable(options = list(dom = 'ftp', paging = TRUE))
+```

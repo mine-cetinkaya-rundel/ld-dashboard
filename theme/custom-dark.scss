@@ -1,0 +1,36 @@
+/*-- scss:defaults --*/
+
+/* Not currently in use until https://github.com/quarto-dev/quarto-cli/issues/7391 is fixed. */
+
+// fonts
+@import 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible&display=swap';
+
+$font-family: "Atkinson Hyperlegible", sans-serif;
+@import 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible&display=swap';
+
+$font-family: "Atkinson Hyperlegible", sans-serif;
+
+// colors
+
+$body-bg: #181818;
+$body-color: #F0F0F0;
+
+$navbar-bg: #009acd;
+$navbar-fg: #F0F0F0;
+$navbar-hl: #FFFFFF;
+
+$link-color: #00688B;
+$hover-color: lighten($link-color, 40%);
+
+/*-- scss:rules --*/
+.card-header {
+  background-color: #494949;
+}
+
+.nav-item > a:hover {
+  color: #009acd;
+}
+
+.nav-link{
+  color: #000000;
+}

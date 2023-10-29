@@ -1,0 +1,37 @@
+/*-- scss:defaults --*/
+
+// fonts
+@import 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible&display=swap';
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@700&display=swap');
+
+$font-family-sans-serif: "Atkinson Hyperlegible";
+
+// colors
+
+$navbar-bg: #0e2635;
+$navbar-fg: #F0F0F0;
+
+$link-color: #ae8b2d;
+$hover-color: lighten($link-color, 40%);
+
+/*-- scss:rules --*/
+.card-header {
+  background-color: #F0F0F0;
+}
+
+.nav-item > a:hover {
+  color: #ae8b2d;
+}
+
+.nav-link{
+  color: #F0F0F0;
+}
+
+
+div.callout-note.callout {
+  border-left-color: #0e2635;
+}
+
+div.callout-note.callout-style-default>.callout-header {
+  background-color: #9ea8ae;
+}
