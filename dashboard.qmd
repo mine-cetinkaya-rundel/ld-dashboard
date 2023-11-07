@@ -122,7 +122,7 @@ p_preterm_color <- case_when(
 ## Row {height="20%"}
 
 ```{r}
-#| component: valuebox
+#| content: valuebox
 #| title: "Total births"
 
 list(
@@ -133,7 +133,7 @@ list(
 ```
 
 ```{r}
-#| component: valuebox
+#| content: valuebox
 #| title: "Cesarean deliveries"
 
 list(
@@ -144,7 +144,7 @@ list(
 ```
 
 ```{r}
-#| component: valuebox
+#| content: valuebox
 #| title: "Pre-term births"
 
 list(
