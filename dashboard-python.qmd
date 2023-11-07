@@ -1,0 +1,223 @@
+---
+title: "Labor and Delivery Dashboard"
+format: dashboard
+logo: images/logo.png
+theme: [sandstone, theme/custom.scss]
+fig-width: 10
+fig-asp: 0.3
+editor_options: 
+  chunk_output_type: console
+---
+
+```{python}
+#| label: load-packages
+
+import pandas as pd
+import seaborn as sns
+import math
+from IPython.display import display, HTML
+import matplotlib.pyplot as plt
+```
+
+```{python}
+#| label: set-parameters
+#| tags: [parameters]
+
+month = "October"
+year = "2023"
+# 2021 rates: https://www.cdc.gov/nchs/data/nvsr/nvsr72/nvsr72-01.pdf
+us_cesarean_rate = 0.321 
+us_preterm_rate =  0.1049
+threshold_diff = 0.02
+```
+
+```{python}
+#| label: load-data
+
+ld = pd.read_excel("data/ld.xlsx")
+```
+
+```{python}
+#| label: set-inputs
+
+time_period = month + " " + year
+```
+
+```{python}
+#| label: prep-data
+
+ld['delivery_method'] = ld['delivery_method'].str.capitalize()
+ld['term'] = ld['term'].str.capitalize()
+
+ld['parity'] = ld['parity'].map({
+    1: "Nulliparous",
+    2: "Primiparous",
+    "3+": "Multiparous"
+})
+
+parity_levels = ["Nulliparous", "Primiparous", "Multiparous"]
+ld['parity'] = pd.Categorical(ld['parity'], categories=parity_levels, ordered=True)
+
+maternal_age_levels = ["<20", "20-34", "35+"]
+ld['maternal_age'] = pd.Categorical(ld['maternal_age'], categories=maternal_age_levels, ordered=True)
+```
+
+#  {.sidebar}
+
+This dashboard displays statistics for:
+
+|              |                     |
+|--------------|---------------------|
+| **Hospital** | Grey Sloan Memorial |
+| **Unit**     | Labor and Delivery  |
+| **Month**    | `{python} time_period`   |
+
+------------------------------------------------------------------------
+
+In `{python} time_period` the staff breakdown in the unit was as follows:
+
+|                          |     |
+|--------------------------|-----|
+| **Attending physicians** |  14 |
+| **Residents**            |  21 |
+| **Nurses**               |  12 |
+
+------------------------------------------------------------------------
+
+::: {.callout-note collapse="true"}
+## Disclaimer
+
+This is a fictional hospital. The data are simulated based on realistic birth characteristics and risk factors from [this report by the CDC](https://www.cdc.gov/nchs/data/nvsr/nvsr72/nvsr72-01.pdf).
+:::
+
+# All
+
+```{python}
+#| label: all-values
+#| results: hide
+
+n_births = len(ld)
+
+p_cesarean = ld['delivery_method'].value_counts(normalize=True)['Cesarean']
+
+if us_cesarean_rate <= p_cesarean <= us_cesarean_rate + threshold_diff:
+    p_cesarean_color = "warning"
+elif p_cesarean > us_cesarean_rate + threshold_diff:
+    p_cesarean_color = "danger"
+else:
+    p_cesarean_color = "light"
+
+p_preterm = ld['term'].value_counts(normalize=True)['Pre-term']
+
+if us_preterm_rate <= p_preterm <= us_preterm_rate + threshold_diff:
+    p_preterm_color = "warning"
+elif p_preterm > us_preterm_rate + threshold_diff:
+    p_preterm_color = "danger"
+else:
+    p_preterm_color = "light"
+
+# format
+accuracy = 0.1  # Set the desired accuracy
+
+p_cesarean_formatted = f"{p_cesarean * 100:.{int(-1 * math.log10(accuracy))}f}%"
+p_preterm_formatted = f"{p_preterm * 100:.{int(-1 * math.log10(accuracy))}f}%"
+```
+
+## Row {height="20%"}
+
+```{python}
+#| component: valuebox
+#| title: "Total births"
+
+dict(
+  icon = "file-medical",
+  color = "primary",
+  value = n_births
+)
+```
+
+```{python}
+#| component: valuebox
+#| title: "Cesarean deliveries"
+
+dict(
+  icon = "clipboard2-pulse",
+  color = p_cesarean_color,
+  value = p_cesarean_formatted
+)
+```
+
+```{python}
+#| component: valuebox
+#| title: "Pre-term births"
+
+dict(
+  icon = "calendar-week",
+  color = p_preterm_color,
+  value = p_preterm_formatted
+)
+```
+
+## Row {height="40%"}
+
+### Column {width="40%"}
+
+```{python}
+#| title: Delivery method
+
+delivery_freq_table = ld['delivery_method'].value_counts().reset_index()
+delivery_freq_table['p'] = delivery_freq_table['count'] / delivery_freq_table['count'].sum()
+
+# Define the formatting function for percentages
+def fmt_percent(val):
+  return f'{val:.1%}'
+
+delivery_freq_table["p"] = delivery_freq_table["p"].apply(fmt_percent)
+
+delivery_freq_table = delivery_freq_table.rename(columns={
+  "delivery_method": "", 
+  "count": "Number of deliveries",
+  "p": "Proportion of deliveries",
+  })
+
+delivery_freq_table.to_html(index = False)
+```
+
+### Column {width="60%"}
+
+```{python}
+#| title: Maternal age
+#| eval: false
+
+# Assuming 'ld' is a Pandas DataFrame
+
+# Create a DataFrame with maternal age counts and proportions
+maternal_age_counts = ld['maternal_age'].value_counts().reset_index()
+maternal_age_counts = maternal_age_counts.rename(columns={'index': 'maternal_age', 'maternal_age': 'count'})
+maternal_age_counts['proportion'] = maternal_age_counts['count'] / maternal_age_counts['count'].sum()
+maternal_age_counts
+
+# Create a Seaborn line plot with dual y-axes
+fig, ax1 = plt.subplots(figsize=(8, 4))
+sns.set(style="whitegrid")
+
+# Primary y-axis (Count)
+sns.lineplot(data=maternal_age_counts, x='maternal_age', y='count', color='#0e263560', linewidth=2, label='Count', ax=ax1)
+sns.scatterplot(data=maternal_age_counts, x='maternal_age', y='count', color='#0e2635', s=100, marker='o', ax=ax1)
+
+# Secondary y-axis (Proportion)
+ax2 = ax1.twinx()
+sns.lineplot(data=maternal_age_counts, x='maternal_age', y='proportion', color='blue', linewidth=2, label='Proportion', ax=ax2)
+sns.scatterplot(data=maternal_age_counts, x='maternal_age', y='proportion', color='blue', s=100, marker='o', ax=ax2)
+
+# Set axis labels
+ax1.set_xlabel('')
+ax1.set_ylabel('Count', color='#0e2635')
+ax2.set_ylabel('Proportion', color='blue')
+
+# Customize the secondary y-axis labels to display percentages
+ax2.yaxis.set_major_formatter(lambda x, _: f'{x * 100:.0f}%')
+
+# Show the plot
+plt.show()
+```
